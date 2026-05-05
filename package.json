@@ -1,7 +1,7 @@
 {
   "name": "candalena-claw",
-  "version": "2.1.1",
-  "description": "Candalena Claw — Universal LMS Reminder Engine. Auto-detect database schema, multi-DB support (MySQL/PostgreSQL/MongoDB), Telegram notifications with deadline reminders.",
+  "version": "3.0.0",
+  "description": "Candalena Claw — AI-Powered LMS Reminder Engine. CLI installer & bridge tool for OpenClaw AI Gateway with dynamic database schema analysis, multi-DB support (MySQL/PostgreSQL/MongoDB), and 24/7 Telegram deadline reminders.",
   "main": "dist/index.js",
   "bin": {
     "candalena-claw": "dist/cli/index.js"
@@ -11,6 +11,8 @@
     "dev": "ts-node src/cli/index.ts",
     "dev:start": "ts-node src/cli/index.ts start",
     "dev:setup": "ts-node src/cli/index.ts setup",
+    "dev:install-ai": "ts-node src/cli/index.ts install-ai",
+    "dev:ai-status": "ts-node src/cli/index.ts ai-status",
     "dev:doctor": "ts-node src/cli/index.ts doctor",
     "dev:status": "ts-node src/cli/index.ts status",
     "dev:config": "ts-node src/cli/index.ts config",

@@ -50,6 +50,8 @@ function customHelp(): void {
   const cmds = [
     ["init", "Initialize project folder"],
     ["setup", "Interactive configuration wizard"],
+    ["install-ai", "Install & configure OpenClaw AI Gateway"],
+    ["ai-status", "Check OpenClaw AI system status"],
     ["start", "Start automation engine"],
     ["stop", "Stop running engine"],
     ["status", "Show system status"],
@@ -214,6 +216,26 @@ program
     try {
       const { uninstallCommand } = require("./commands/uninstall");
       await uninstallCommand();
+    } catch (err) { handleError(err); process.exit(1); }
+  });
+
+program
+  .command("install-ai")
+  .description("Install & configure OpenClaw AI Gateway")
+  .action(async () => {
+    try {
+      const { installAiCommand } = require("./commands/install-ai");
+      await installAiCommand();
+    } catch (err) { handleError(err); process.exit(1); }
+  });
+
+program
+  .command("ai-status")
+  .description("Check OpenClaw AI system status")
+  .action(async () => {
+    try {
+      const { aiStatusCommand } = require("./commands/ai-status");
+      await aiStatusCommand();
     } catch (err) { handleError(err); process.exit(1); }
   });
 
