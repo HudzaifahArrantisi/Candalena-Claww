@@ -1,0 +1,70 @@
+{
+  "name": "candalena-claw",
+  "version": "2.1.1",
+  "description": "Candalena Claw — Universal LMS Reminder Engine. Auto-detect database schema, multi-DB support (MySQL/PostgreSQL/MongoDB), Telegram notifications with deadline reminders.",
+  "main": "dist/index.js",
+  "bin": {
+    "candalena-claw": "dist/cli/index.js"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "dev": "ts-node src/cli/index.ts",
+    "dev:start": "ts-node src/cli/index.ts start",
+    "dev:setup": "ts-node src/cli/index.ts setup",
+    "dev:doctor": "ts-node src/cli/index.ts doctor",
+    "dev:status": "ts-node src/cli/index.ts status",
+    "dev:config": "ts-node src/cli/index.ts config",
+    "dev:init": "ts-node src/cli/index.ts init",
+    "dev:test": "ts-node src/cli/index.ts test",
+    "build": "tsc",
+    "start": "node dist/cli/index.js start",
+    "postbuild": "node -e \"const fs=require('fs');const p='dist/cli/index.js';const c=fs.readFileSync(p,'utf8');if(!c.startsWith('#!')){fs.writeFileSync(p,'#!/usr/bin/env node\\n'+c);}\""
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "lms",
+    "reminder",
+    "telegram",
+    "assignment",
+    "university",
+    "mysql",
+    "postgresql",
+    "mongodb",
+    "auto-detect",
+    "scheduler",
+    "cli",
+    "candalena",
+    "claw"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "boxen": "^5.1.2",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "inquirer": "^8.2.7",
+    "mysql2": "^3.22.3",
+    "node-cron": "^4.2.1",
+    "ora": "^5.4.1"
+  },
+  "optionalDependencies": {
+    "mongodb": "^6.16.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.6.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.15.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
