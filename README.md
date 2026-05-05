@@ -171,7 +171,7 @@ After setup, OpenClaw runs autonomously:
 npm install -g candalena-claw
 
 # Or clone and build
-git clone https://github.com/your-repo/candalena-claw.git
+git clone https://github.com/HudzaifahArrantisi/Candalena-Claww.git
 cd candalena-claw
 npm install
 npm run build
