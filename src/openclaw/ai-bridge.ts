@@ -98,15 +98,26 @@ export async function analyzeSchemaWithAI(
  */
 export async function isGatewayReachable(): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    const req = http.get(`${OPENCLAW_API}/`, (res) => {
-      resolve(res.statusCode !== undefined);
+    const net = require("net");
+    const socket = new net.Socket();
+    
+    socket.setTimeout(1000);
+    
+    socket.on("connect", () => {
+      socket.destroy();
+      resolve(true);
     });
-
-    req.on("error", () => resolve(false));
-    req.setTimeout(5000, () => {
-      req.destroy();
+    
+    socket.on("timeout", () => {
+      socket.destroy();
       resolve(false);
     });
+    
+    socket.on("error", () => {
+      resolve(false);
+    });
+    
+    socket.connect(18789, "127.0.0.1");
   });
 }
 

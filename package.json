@@ -1,7 +1,7 @@
 {
   "name": "candalena-claw",
-  "version": "3.0.0",
-  "description": "Candalena Claw — AI-Powered LMS Reminder Engine. CLI installer & bridge tool for OpenClaw AI Gateway with dynamic database schema analysis, multi-DB support (MySQL/PostgreSQL/MongoDB), and 24/7 Telegram deadline reminders.",
+  "version": "4.0.0",
+  "description": "Candalena Claw — Standalone LMS Reminder Engine. CLI wizard & background daemon with multi-DB support (MySQL/PostgreSQL/MongoDB), AI-powered analysis (Gemini/OpenAI), and 24/7 Telegram deadline reminders. No OpenClaw required.",
   "main": "dist/index.js",
   "bin": {
     "candalena-claw": "dist/cli/index.js"
@@ -12,7 +12,7 @@
     "dev:start": "ts-node src/cli/index.ts start",
     "dev:setup": "ts-node src/cli/index.ts setup",
     "dev:install-ai": "ts-node src/cli/index.ts install-ai",
-    "dev:ai-status": "ts-node src/cli/index.ts ai-status",
+    "dev:daemon": "ts-node src/engine/daemon.ts",
     "dev:doctor": "ts-node src/cli/index.ts doctor",
     "dev:status": "ts-node src/cli/index.ts status",
     "dev:config": "ts-node src/cli/index.ts config",
@@ -20,6 +20,7 @@
     "dev:test": "ts-node src/cli/index.ts test",
     "build": "tsc",
     "start": "node dist/cli/index.js start",
+    "start:daemon": "node dist/engine/daemon.js",
     "postbuild": "node -e \"const fs=require('fs');const p='dist/cli/index.js';const c=fs.readFileSync(p,'utf8');if(!c.startsWith('#!')){fs.writeFileSync(p,'#!/usr/bin/env node\\n'+c);}\""
   },
   "files": [
@@ -40,7 +41,10 @@
     "scheduler",
     "cli",
     "candalena",
-    "claw"
+    "claw",
+    "daemon",
+    "cron",
+    "standalone"
   ],
   "author": "",
   "license": "ISC",

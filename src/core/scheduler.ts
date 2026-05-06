@@ -5,14 +5,14 @@ import { ENV } from "../config/env";
 
 export function startScheduler(): void {
   const schedule = ENV.CRON_SCHEDULE;
-  console.log(`[OpenClaw] Scheduler active (cron: ${schedule})`);
+  console.log(`[Candalena] Scheduler active (cron: ${schedule})`);
 
   cron.schedule(schedule, async () => {
-    console.log(`[OpenClaw] ⏰ Tick — ${new Date().toISOString()}`);
+    console.log(`[Candalena] ⏰ Tick — ${new Date().toISOString()}`);
     try {
       await scanAndNotify();
     } catch (err: any) {
-      console.error("[OpenClaw] ❌ Scheduler error:", err.message);
+      console.error("[Candalena] ❌ Scheduler error:", err.message);
     }
   });
 }

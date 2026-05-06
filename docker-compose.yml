@@ -1,0 +1,19 @@
+# ═══════════════════════════════════════════
+# Candalena Claw — Docker Compose
+# Deploy with: docker compose up -d
+# ═══════════════════════════════════════════
+
+services:
+  candalena-daemon:
+    build: .
+    container_name: candalena-claw
+    restart: unless-stopped
+    env_file:
+      - .env
+    # No ports — this is a background worker
+    # ports: []
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -38,12 +38,12 @@ export function createAdapter(): DatabaseAdapter {
 
     default:
       throw new Error(
-        `[OpenClaw] ❌ Unsupported DB_TYPE: "${ENV.DB_TYPE}".\n` +
+        `[Candalena] ❌ Unsupported DB_TYPE: "${ENV.DB_TYPE}".\n` +
         `           Supported: mysql, postgres, mongodb`
       );
   }
 
-  console.log(`[OpenClaw] Database engine: ${cachedAdapter.engineName}`);
+  console.log(`[Candalena] Database engine: ${cachedAdapter.engineName}`);
   return cachedAdapter;
 }
 

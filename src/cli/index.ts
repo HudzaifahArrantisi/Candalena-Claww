@@ -50,8 +50,7 @@ function customHelp(): void {
   const cmds = [
     ["init", "Initialize project folder"],
     ["setup", "Interactive configuration wizard"],
-    ["install-ai", "Install & configure OpenClaw AI Gateway"],
-    ["ai-status", "Check OpenClaw AI system status"],
+    ["install-ai", "Setup wizard (Database + Telegram + AI)"],
     ["start", "Start automation engine"],
     ["stop", "Stop running engine"],
     ["status", "Show system status"],
@@ -221,21 +220,11 @@ program
 
 program
   .command("install-ai")
-  .description("Install & configure OpenClaw AI Gateway")
+  .description("Setup wizard (Database + Telegram + AI)")
   .action(async () => {
     try {
       const { installAiCommand } = require("./commands/install-ai");
       await installAiCommand();
-    } catch (err) { handleError(err); process.exit(1); }
-  });
-
-program
-  .command("ai-status")
-  .description("Check OpenClaw AI system status")
-  .action(async () => {
-    try {
-      const { aiStatusCommand } = require("./commands/ai-status");
-      await aiStatusCommand();
     } catch (err) { handleError(err); process.exit(1); }
   });
 

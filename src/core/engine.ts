@@ -11,11 +11,11 @@ let cachedSchema: SchemaMapping | null = null;
  * Boot engine: test connection → detect schema → start scheduler
  */
 export async function startEngine(): Promise<void> {
-  console.log("[OpenClaw] Engine starting...");
-  console.log(`[OpenClaw] DB Type: ${ENV.DB_TYPE}`);
-  console.log(`[OpenClaw] DB Host: ${ENV.DB_HOST}:${ENV.DB_PORT}`);
-  console.log(`[OpenClaw] DB Name: ${ENV.DB_NAME}`);
-  console.log(`[OpenClaw] Table:   ${TABLE}`);
+  console.log("[Candalena] Engine starting...");
+  console.log(`[Candalena] DB Type: ${ENV.DB_TYPE}`);
+  console.log(`[Candalena] DB Host: ${ENV.DB_HOST}:${ENV.DB_PORT}`);
+  console.log(`[Candalena] DB Name: ${ENV.DB_NAME}`);
+  console.log(`[Candalena] Table:   ${TABLE}`);
 
   const adapter = createAdapter();
 
@@ -25,12 +25,12 @@ export async function startEngine(): Promise<void> {
   // Auto-detect schema
   const schema = await adapter.detectSchema(TABLE);
   cachedSchema = schema;
-  console.log("[OpenClaw] Schema detected:", JSON.stringify(schema, null, 2));
+  console.log("[Candalena] Schema detected:", JSON.stringify(schema, null, 2));
 
   // Start cron scheduler
   startScheduler();
 
-  console.log("[OpenClaw] ✅ Engine running.");
+  console.log("[Candalena] ✅ Engine running.");
 }
 
 /**

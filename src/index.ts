@@ -7,7 +7,7 @@ async function main() {
     startServer();
     await startEngine();
   } catch (err: any) {
-    console.error("[OpenClaw] ❌ Fatal error:", err.message);
+    console.error("[Candalena] ❌ Fatal error:", err.message);
     process.exit(1);
   }
 }

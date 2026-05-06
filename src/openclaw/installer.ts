@@ -284,16 +284,14 @@ export async function startGateway(
  */
 export function isGatewayRunning(): boolean {
   try {
-    const http = require("http");
+    const net = require("net");
     return new Promise<boolean>((resolve) => {
-      const req = http.get("http://127.0.0.1:18789/", (res: any) => {
-        resolve(res.statusCode !== undefined);
-      });
-      req.on("error", () => resolve(false));
-      req.setTimeout(3000, () => {
-        req.destroy();
-        resolve(false);
-      });
+      const socket = new net.Socket();
+      socket.setTimeout(1000);
+      socket.on("connect", () => { socket.destroy(); resolve(true); });
+      socket.on("timeout", () => { socket.destroy(); resolve(false); });
+      socket.on("error", () => resolve(false));
+      socket.connect(18789, "127.0.0.1");
     }) as any; // Sync check approximation
   } catch {
     return false;

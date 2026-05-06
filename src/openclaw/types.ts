@@ -9,6 +9,7 @@ export interface DatabaseCredentials {
   password: string;
   database: string;
   uri?: string;
+  ssl?: boolean;
 }
 
 export interface TableSchema {

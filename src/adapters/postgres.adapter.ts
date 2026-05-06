@@ -10,7 +10,7 @@ function getPg() {
       pg = require("pg");
     } catch {
       throw new Error(
-        '[OpenClaw] PostgreSQL driver not installed. Run: npm install pg\n' +
+        '[Candalena] PostgreSQL driver not installed. Run: npm install pg\n' +
         '           For TypeScript types: npm install -D @types/pg'
       );
     }
@@ -42,7 +42,7 @@ export class PostgresAdapter implements DatabaseAdapter {
 
   async testConnection(): Promise<void> {
     const client = await this.pool.connect();
-    console.log("[OpenClaw] ✅ PostgreSQL connected");
+    console.log("[Candalena] ✅ PostgreSQL connected");
     client.release();
   }
 
@@ -54,7 +54,7 @@ export class PostgresAdapter implements DatabaseAdapter {
     );
     const columnNames = result.rows.map((r: any) => r.column_name);
     if (columnNames.length === 0) {
-      throw new Error(`[OpenClaw] Table "${tableName}" not found or has no columns.`);
+      throw new Error(`[Candalena] Table "${tableName}" not found or has no columns.`);
     }
     return detectColumns(columnNames);
   }

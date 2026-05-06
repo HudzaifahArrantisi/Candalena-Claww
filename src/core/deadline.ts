@@ -56,7 +56,7 @@ export function formatDeadlineMessage(task: Assignment, daysLeft: number): strin
 
   lines.push(`━━━━━━━━━━━━━━━━━━`);
   lines.push(`🕐 ${now}`);
-  lines.push(`🤖 <i>OpenClaw Reminder Engine</i>`);
+  lines.push(`🤖 <i>Candalena Claw Reminder</i>`);
 
   return lines.join("\n");
 }

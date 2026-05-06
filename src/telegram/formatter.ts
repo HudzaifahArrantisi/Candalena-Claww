@@ -36,7 +36,7 @@ export function formatReminderMessage(task: Assignment): string {
 
   lines.push(`━━━━━━━━━━━━━━━━━━`);
   lines.push(`🕐 ${now}`);
-  lines.push(`🤖 <i>OpenClaw Reminder Engine</i>`);
+  lines.push(`🤖 <i>Candalena Claw Reminder</i>`);
 
   return lines.join("\n");
 }

@@ -12,8 +12,8 @@ export function startServer(): void {
 
   app.get("/", (_req, res) => {
     res.json({
-      name: "OpenClaw Reminder Engine",
-      version: "2.0.0",
+      name: "Candalena Claw Reminder Engine",
+      version: "4.0.0",
       status: "running",
       docs: {
         tasks: "/api/tugas",
@@ -26,6 +26,6 @@ export function startServer(): void {
   app.use("/api", statusRoute);
 
   app.listen(port, () => {
-    console.log(`[OpenClaw] Server running at http://localhost:${port}`);
+    console.log(`[Candalena] Server running at http://localhost:${port}`);
   });
 }

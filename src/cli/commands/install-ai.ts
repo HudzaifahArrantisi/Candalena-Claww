@@ -1,130 +1,28 @@
 // src/cli/commands/install-ai.ts
-// ─── OpenClaw AI Installer Command ───
-// Main CLI command: `candalena-claw install-ai`
+// ─── Candalena Claw Setup Wizard ───
+// Standalone 3-step configuration wizard. No OpenClaw dependency.
+// Generates a .env file and validates database/telegram connectivity.
 
 import inquirer from "inquirer";
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 import { printBanner, printHeader, printOk, printFail, printWarn, printInfo, printLine, printBlank, brand, createSpinner, handleError } from "../ui";
-import {
-  isOpenClawInstalled,
-  installOpenClaw,
-  runOnboarding,
-  ensureOpenClawDirs,
-  injectTelegramConfig,
-  injectToolsConfig,
-  injectHooksConfig,
-  startGateway,
-  OPENCLAW_HOME,
-  OPENCLAW_SKILLS_DIR,
-} from "../../openclaw/installer";
-import { scrapeDatabase } from "../../openclaw/schema-scraper";
-import { analyzeSchemaWithAI, isGatewayReachable } from "../../openclaw/ai-bridge";
-import { buildSkillContent, SYSTEM_PROMPT } from "../../openclaw/ai-prompt";
-import { createDeadlineCronJobs } from "../../openclaw/cron-setup";
-import { DatabaseCredentials, DatabaseDDL } from "../../openclaw/types";
+import { scrapeDatabase } from "../../lib/schema-scraper";
+import { DatabaseCredentials, DatabaseDDL } from "../../lib/types";
+import { parseDatabaseUrl, detectCloudProvider, formatCredentialsSummary } from "../../lib/db-url-parser";
 
 export async function installAiCommand(): Promise<void> {
   printBanner();
-  printHeader("🧠 AI-Powered Setup — OpenClaw Integration");
+  printHeader("🦞 Candalena Claw — Setup Wizard");
 
   printLine(brand.muted("This wizard will:"));
-  printLine(`  ${brand.primary("1.")} Install OpenClaw AI Gateway`);
-  printLine(`  ${brand.primary("2.")} Configure Telegram Bot`);
-  printLine(`  ${brand.primary("3.")} Scrape your LMS database schema`);
-  printLine(`  ${brand.primary("4.")} Let AI analyze & map your database`);
-  printLine(`  ${brand.primary("5.")} Set up 24/7 monitoring cron jobs`);
+  printLine(`  ${brand.primary("1.")} Configure your LMS Database connection`);
+  printLine(`  ${brand.primary("2.")} Configure Telegram Bot & Channels`);
+  printLine(`  ${brand.primary("→")} Generate a .env file and validate everything`);
   printBlank();
 
-  // ─── Step 1: Install OpenClaw ─────────────────────────────────
-  printHeader("Step 1/5 — Install OpenClaw");
-
-  if (isOpenClawInstalled()) {
-    printOk("OpenClaw is already installed.");
-  } else {
-    const { confirmInstall } = await inquirer.prompt([{
-      type: "confirm",
-      name: "confirmInstall",
-      message: "OpenClaw is not installed. Install now?",
-      default: true,
-    }]);
-
-    if (!confirmInstall) {
-      printWarn("Installation cancelled. Install OpenClaw manually:");
-      printLine(`  ${brand.white("npm install -g openclaw@latest")}`);
-      return;
-    }
-
-    const spinner = createSpinner("Installing OpenClaw...");
-    spinner.start();
-    try {
-      await installOpenClaw((msg) => { spinner.text = `  ${msg}`; });
-      spinner.succeed("  OpenClaw installed successfully.");
-    } catch (err: any) {
-      spinner.fail(`  ${err.message}`);
-      return;
-    }
-
-    // Run onboarding
-    const onboardSpinner = createSpinner("Running onboarding...");
-    onboardSpinner.start();
-    try {
-      await runOnboarding((msg) => { onboardSpinner.text = `  ${msg}`; });
-      onboardSpinner.succeed("  Onboarding complete.");
-    } catch {
-      onboardSpinner.warn("  Onboarding skipped — will configure manually.");
-    }
-  }
-
-  ensureOpenClawDirs();
-
-  // ─── Step 2: Telegram Configuration ───────────────────────────
-  printHeader("Step 2/5 — Telegram Bot Configuration");
-
-  printInfo("Create a bot via @BotFather on Telegram → /newbot");
-  printBlank();
-
-  const { botToken } = await inquirer.prompt([{
-    type: "password",
-    name: "botToken",
-    message: "Telegram Bot Token:",
-    mask: "*",
-    validate: (v: string) => v.length > 10 || "Token too short",
-  }]);
-
-  // Ask for class→Telegram group mappings
-  printBlank();
-  printInfo("Now map each class to its Telegram group/channel.");
-  printInfo("You can add the bot to groups later and get Chat IDs via @getidsbot");
-  printBlank();
-
-  const { numClasses } = await inquirer.prompt([{
-    type: "number",
-    name: "numClasses",
-    message: "How many class groups to configure? (0 to skip):",
-    default: 0,
-  }]);
-
-  const telegramGroups: Record<string, string> = {};
-  for (let i = 0; i < (numClasses || 0); i++) {
-    const { className, chatId } = await inquirer.prompt([
-      { type: "input", name: "className", message: `Class ${i + 1} name (e.g., TI-01):` },
-      { type: "input", name: "chatId", message: `Telegram Chat ID for this class:` },
-    ]);
-    if (className && chatId) telegramGroups[className] = chatId;
-  }
-
-  // Inject Telegram config into openclaw.json
-  const configSpinner = createSpinner("Injecting Telegram config...");
-  configSpinner.start();
-  injectTelegramConfig(botToken, telegramGroups);
-  injectToolsConfig();
-  injectHooksConfig(`candalena-${Date.now()}`);
-  configSpinner.succeed("  Telegram configured in ~/.openclaw/openclaw.json");
-
-  // ─── Step 3: Database Schema Scraping ─────────────────────────
-  printHeader("Step 3/5 — Database Schema Scraping");
+  // ─── Step 1: Database Configuration ─────────────────────────
+  printHeader("Step 1/2 — Database Configuration");
 
   const envPath = path.resolve(process.cwd(), ".env");
   let dbCreds: DatabaseCredentials;
@@ -139,17 +37,38 @@ export async function installAiCommand(): Promise<void> {
       if (match) envVars[match[1].trim()] = match[2].trim();
     }
 
-    dbCreds = {
-      type: (envVars.DB_TYPE as any) || "mysql",
-      host: envVars.DB_HOST || "localhost",
-      port: parseInt(envVars.DB_PORT || "3306"),
-      user: envVars.DB_USER || "root",
-      password: envVars.DB_PASS || "",
-      database: envVars.DB_NAME || "openclaw",
-      uri: envVars.DB_URI,
-    };
+    // Check if there's a DATABASE_URL in .env
+    const existingUrl = envVars.DATABASE_URL || envVars.DB_URI || envVars.DB_URL;
 
-    printOk(`Database: ${dbCreds.type}://${dbCreds.host}:${dbCreds.port}/${dbCreds.database}`);
+    if (existingUrl) {
+      try {
+        dbCreds = parseDatabaseUrl(existingUrl);
+        const provider = detectCloudProvider(existingUrl);
+        const providerLabel = provider ? `${provider.icon} ${provider.name}` : "Cloud DB";
+        printOk(`Found DATABASE_URL → ${providerLabel}`);
+        printLine(`  ${brand.muted(formatCredentialsSummary(dbCreds))}`);
+      } catch {
+        dbCreds = {
+          type: (envVars.DB_TYPE as any) || "mysql",
+          host: envVars.DB_HOST || "localhost",
+          port: parseInt(envVars.DB_PORT || "3306"),
+          user: envVars.DB_USER || "root",
+          password: envVars.DB_PASS || "",
+          database: envVars.DB_NAME || "candalena",
+        };
+        printOk(`Database: ${dbCreds.type}://${dbCreds.host}:${dbCreds.port}/${dbCreds.database}`);
+      }
+    } else {
+      dbCreds = {
+        type: (envVars.DB_TYPE as any) || "mysql",
+        host: envVars.DB_HOST || "localhost",
+        port: parseInt(envVars.DB_PORT || "3306"),
+        user: envVars.DB_USER || "root",
+        password: envVars.DB_PASS || "",
+        database: envVars.DB_NAME || "candalena",
+      };
+      printOk(`Database: ${dbCreds.type}://${dbCreds.host}:${dbCreds.port}/${dbCreds.database}`);
+    }
 
     const { useExisting } = await inquirer.prompt([{
       type: "confirm",
@@ -159,13 +78,13 @@ export async function installAiCommand(): Promise<void> {
     }]);
 
     if (!useExisting) {
-      dbCreds = await promptDatabaseCredentials();
+      dbCreds = await promptDatabaseConnection();
     }
   } else {
-    dbCreds = await promptDatabaseCredentials();
+    dbCreds = await promptDatabaseConnection();
   }
 
-  // Scrape the database
+  // Scrape the database to verify & analyze
   const scrapeSpinner = createSpinner("Scraping database schema (information_schema)...");
   scrapeSpinner.start();
 
@@ -180,9 +99,9 @@ export async function installAiCommand(): Promise<void> {
   }
 
   // Save DDL to file for reference
-  const ddlPath = path.join(process.cwd(), ".candalena", "schema-ddl.sql");
-  const candalenaDir = path.dirname(ddlPath);
+  const candalenaDir = path.resolve(process.cwd(), ".candalena");
   if (!fs.existsSync(candalenaDir)) fs.mkdirSync(candalenaDir, { recursive: true });
+  const ddlPath = path.join(candalenaDir, "schema-ddl.sql");
   fs.writeFileSync(ddlPath, ddl.rawDDL, "utf-8");
   printOk(`DDL saved to ${ddlPath}`);
 
@@ -194,138 +113,296 @@ export async function installAiCommand(): Promise<void> {
   }
   printBlank();
 
-  // ─── Step 4: AI Schema Analysis ───────────────────────────────
-  printHeader("Step 4/5 — AI Schema Analysis");
+  // ─── Step 2: Telegram Bot Configuration ─────────────────────
+  printHeader("Step 2/2 — Telegram Bot Configuration");
 
-  let schemaMapping: Record<string, any> | null = null;
+  printInfo("Create a bot via @BotFather on Telegram → /newbot");
+  printBlank();
 
-  // Check if gateway is running
-  let gatewayUp = await isGatewayReachable();
-
-  if (!gatewayUp) {
-    printInfo("Starting OpenClaw Gateway...");
-    try {
-      await startGateway((msg) => printLine(`  ${msg}`));
-      
-      // Wait for gateway to become reachable (poll every 2s, up to 30s)
-      let isReady = false;
-      printLine(brand.muted("  Waiting for gateway to initialize..."));
-      for (let i = 0; i < 15; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        if (await isGatewayReachable()) {
-          isReady = true;
-          break;
-        }
-      }
-      
-      if (!isReady) {
-        printWarn("Gateway took too long to start. AI Analysis and Cron creation might fail.");
-      } else {
-        printLine(brand.success("  Gateway is ready!"));
-        gatewayUp = true;
-      }
-    } catch {
-      printWarn("Could not auto-start gateway. Start manually:");
-      printLine(`  ${brand.white("openclaw gateway")}`);
-    }
-  }
-
-  if (gatewayUp) {
-    const aiSpinner = createSpinner("Sending schema to OpenClaw AI for analysis...");
-    aiSpinner.start();
-
-    try {
-      schemaMapping = await analyzeSchemaWithAI(ddl) as any;
-      if (schemaMapping) {
-        aiSpinner.succeed("  AI analysis complete.");
-        printBlank();
-        printLine(brand.bold("AI Mapping Result:"));
-        printLine(`  Dosen:      ${brand.success((schemaMapping as any).dosenTable || "?")}`);
-        printLine(`  Mahasiswa:  ${brand.success((schemaMapping as any).mahasiswaTable || "?")}`);
-        printLine(`  Kelas:      ${brand.success((schemaMapping as any).kelasTable || "?")}`);
-        printLine(`  Tugas:      ${brand.success((schemaMapping as any).tugasTable || "?")}`);
-        printLine(`  Mata Kuliah:${brand.success((schemaMapping as any).mataKuliahTable || "?")}`);
-        printBlank();
-      } else {
-        aiSpinner.warn("  AI could not parse the schema — will use DDL directly.");
-      }
-    } catch {
-      aiSpinner.warn("  AI analysis unavailable — will inject raw DDL into skill.");
-    }
-  } else {
-    printWarn("OpenClaw Gateway not running — skipping AI analysis.");
-    printInfo("The raw DDL will be injected into the skill file for later analysis.");
-  }
-
-  // Save mapping
-  if (schemaMapping) {
-    const mappingPath = path.join(process.cwd(), ".candalena", "schema-mapping.json");
-    fs.writeFileSync(mappingPath, JSON.stringify(schemaMapping, null, 2), "utf-8");
-    printOk(`Mapping saved to ${mappingPath}`);
-  }
-
-  // ─── Write SKILL.md ───────────────────────────────────────────
-  const skillContent = buildSkillContent(
-    dbCreds.type,
-    dbCreds.host,
-    dbCreds.port,
-    dbCreds.database,
-    dbCreds.user,
-    telegramGroups,
-    schemaMapping || undefined,
-  );
-
-  const skillDir = path.join(OPENCLAW_SKILLS_DIR, "candalena-lms");
-  if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
-  const skillPath = path.join(skillDir, "SKILL.md");
-  fs.writeFileSync(skillPath, skillContent, "utf-8");
-  printOk(`Skill file written to ${skillPath}`);
-
-  // Also write the raw DDL alongside the skill
-  fs.writeFileSync(path.join(skillDir, "schema.sql"), ddl.rawDDL, "utf-8");
-
-  // ─── Step 5: Cron Jobs & Gateway ──────────────────────────────
-  printHeader("Step 5/5 — 24/7 Monitoring Setup");
-
-  const { timezone } = await inquirer.prompt([{
-    type: "input",
-    name: "timezone",
-    message: "Timezone (e.g., Asia/Jakarta):",
-    default: "Asia/Jakarta",
+  const { botToken } = await inquirer.prompt([{
+    type: "password",
+    name: "botToken",
+    message: "Telegram Bot Token:",
+    mask: "*",
+    validate: (v: string) => v.length > 10 || "Token too short",
   }]);
 
-  // Determine primary notification target
-  const primaryChatId = Object.values(telegramGroups)[0] || "";
+  // Ask for class→Telegram group mappings
+  printBlank();
+  printInfo("Now map each class to its Telegram channel/group.");
+  printInfo("You can use: Username (@channel), Link (t.me/channel), or Numeric ID (-100123...)");
+  printInfo("Note: If using username/link, ensure the channel is PUBLIC and bot is Admin.");
+  printBlank();
 
-  // Create cron jobs
-  printInfo("Creating scheduled monitoring jobs...");
-  await createDeadlineCronJobs(timezone, primaryChatId, (msg) => printLine(msg));
+  const { numClasses } = await inquirer.prompt([{
+    type: "number",
+    name: "numClasses",
+    message: "How many class groups to configure? (0 to skip):",
+    default: 1,
+  }]);
 
-  // ─── DONE ─────────────────────────────────────────────────────
+  const telegramGroups: Record<string, string> = {};
+  for (let i = 0; i < (numClasses || 0); i++) {
+    const { className, chatInput } = await inquirer.prompt([
+      { type: "input", name: "className", message: `Class ${i + 1} name (e.g., TI-01):` },
+      { type: "input", name: "chatInput", message: `Telegram Username / Link / ID:` },
+    ]);
+
+    if (className && chatInput) {
+      let finalChatId = chatInput.trim();
+
+      // Parse t.me/username links
+      if (finalChatId.includes("t.me/")) {
+        const parts = finalChatId.split("t.me/");
+        finalChatId = "@" + parts[parts.length - 1].replace(/\/.*/, "");
+      }
+      // Add @ symbol if it's a raw string without - or @
+      else if (!finalChatId.startsWith("-") && !finalChatId.startsWith("@") && isNaN(Number(finalChatId))) {
+        finalChatId = "@" + finalChatId;
+      }
+
+      telegramGroups[className] = finalChatId;
+    }
+  }
+
+  const aiProvider = "skip";
+  const aiApiKey = "";
+  const aiModel = "";
+
+  // ─── Generate .env File ─────────────────────────────────────
+  printBlank();
+  printHeader("Generating Configuration");
+
+  const envSpinner = createSpinner("Writing .env file...");
+  envSpinner.start();
+
+  // Build telegram groups as comma-separated JSON for the .env
+  const groupEntries = Object.entries(telegramGroups);
+  const telegramTargets = groupEntries.map(([, chatId]) => chatId).join(",");
+  const telegramGroupsJson = JSON.stringify(telegramGroups);
+  const primaryChatId = groupEntries.length > 0 ? groupEntries[0][1] : "";
+
+  const envLines: string[] = [
+    "# ═══════════════════════════════════════════",
+    "# Candalena Claw — Environment Configuration",
+    `# Generated: ${new Date().toISOString()}`,
+    "# ═══════════════════════════════════════════",
+    "",
+    "# ─── Database ──────────────────────────────",
+    `DB_TYPE=${dbCreds.type}`,
+    `DB_HOST=${dbCreds.host}`,
+    `DB_PORT=${dbCreds.port}`,
+    `DB_USER=${dbCreds.user}`,
+    `DB_PASS=${dbCreds.password}`,
+    `DB_NAME=${dbCreds.database}`,
+  ];
+
+  if (dbCreds.uri) {
+    envLines.push(`DATABASE_URL=${dbCreds.uri}`);
+  }
+  if (dbCreds.ssl) {
+    envLines.push(`DB_SSL=true`);
+  }
+
+  envLines.push(
+    "",
+    "# ─── Telegram ─────────────────────────────",
+    `TELEGRAM_BOT_TOKEN=${botToken}`,
+    `TELEGRAM_CHAT_ID=${primaryChatId}`,
+    `TELEGRAM_TARGETS=${telegramTargets}`,
+    `TELEGRAM_GROUPS=${telegramGroupsJson}`,
+    "",
+    "# ─── AI Provider ──────────────────────────",
+    `AI_PROVIDER=${aiProvider || "skip"}`,
+    `AI_API_KEY=${aiApiKey}`,
+    `AI_MODEL=${aiModel}`,
+    "",
+    "# ─── Scheduler ────────────────────────────",
+    "CRON_SCHEDULE=0 7,12,20 * * *",
+    "DEADLINE_REMIND_DAYS=3,1,0",
+    "TZ=Asia/Jakarta",
+    "",
+    "# ─── Server (optional, for status API) ────",
+    "PORT=3500",
+    "",
+    "# ─── Schema (auto-detect if empty) ────────",
+    "TABLE_NAME=tugas",
+    "# COL_ID=",
+    "# COL_TITLE=",
+    "# COL_DEADLINE=",
+    "# COL_COURSE=",
+    "# COL_LECTURER=",
+    "# COL_SEMESTER=",
+    "# COL_KELAS=",
+    "# COL_TELEGRAM=",
+    "# COL_NOTIFIED=",
+  );
+
+  fs.writeFileSync(envPath, envLines.join("\n"), "utf-8");
+  envSpinner.succeed(`  Configuration saved to ${envPath}`);
+
+  // Save schema mapping
+  const mappingPath = path.join(candalenaDir, "schema-mapping.json");
+  const schemaInfo = {
+    generatedAt: new Date().toISOString(),
+    dbType: dbCreds.type,
+    host: dbCreds.host,
+    database: dbCreds.database,
+    tables: ddl.tables.map(t => ({ name: t.tableName, columns: t.columns.length })),
+    foreignKeys: ddl.foreignKeys.length,
+    telegramGroups,
+  };
+  fs.writeFileSync(mappingPath, JSON.stringify(schemaInfo, null, 2), "utf-8");
+
+  // ─── DONE ─────────────────────────────────────────────────
   printBlank();
   printLine(brand.primary.bold("═".repeat(52)));
   printLine(brand.success.bold("  🎉 Setup Complete!"));
   printLine(brand.primary.bold("═".repeat(52)));
   printBlank();
   printLine(brand.bold("  What was configured:"));
-  printLine(`  ${brand.success("✔")} OpenClaw AI Gateway installed`);
+  printLine(`  ${brand.success("✔")} Database connection verified (${ddl.tables.length} tables)`);
   printLine(`  ${brand.success("✔")} Telegram Bot configured`);
-  printLine(`  ${brand.success("✔")} Database schema scraped (${ddl.tables.length} tables)`);
-  printLine(`  ${brand.success("✔")} AI skill deployed to ~/.openclaw/skills/candalena-lms/`);
-  printLine(`  ${brand.success("✔")} Cron jobs for 24/7 monitoring`);
+  if (groupEntries.length > 0) {
+    for (const [className, chatId] of groupEntries) {
+      printLine(`    ${brand.muted("→")} ${className}: ${chatId}`);
+    }
+  }
+  printLine(`  ${brand.success("✔")} .env file generated`);
+  printLine(`  ${brand.success("✔")} Schema DDL saved`);
   printBlank();
   printLine(brand.bold("  Next steps:"));
-  printLine(`  ${brand.primary("1.")} Start the gateway: ${brand.white("openclaw gateway")}`);
-  printLine(`  ${brand.primary("2.")} Check cron jobs:   ${brand.white("openclaw cron list")}`);
-  printLine(`  ${brand.primary("3.")} View dashboard:    ${brand.white("openclaw dashboard")}`);
-  printLine(`  ${brand.primary("4.")} Monitor logs:      ${brand.white("openclaw logs --follow")}`);
+  printLine(`  ${brand.primary("1.")} Start the daemon:    ${brand.white("candalena-claw start")}`);
+  printLine(`  ${brand.primary("2.")} Or use Docker:       ${brand.white("docker compose up -d")}`);
+  printLine(`  ${brand.primary("3.")} Or use PM2:          ${brand.white("pm2 start dist/engine/daemon.js")}`);
+  printLine(`  ${brand.primary("4.")} Check status:        ${brand.white("candalena-claw status")}`);
+  printLine(`  ${brand.primary("5.")} Send test message:   ${brand.white("candalena-claw test")}`);
   printBlank();
-  printLine(brand.muted("  OpenClaw AI will now monitor your LMS database 24/7"));
-  printLine(brand.muted("  and send Telegram reminders automatically. 🦞"));
+  printLine(brand.muted("  The daemon will monitor your database 24/7"));
+  printLine(brand.muted("  and send Telegram reminders on H-3, H-1, and H-0. 🦞"));
   printBlank();
 }
 
-// ─── Helper: Prompt for DB credentials ──────────────────────────
+// ─── Helper: Prompt for DB connection (URL or Manual) ───────────
+
+async function promptDatabaseConnection(): Promise<DatabaseCredentials> {
+  printBlank();
+  printLine(brand.bold("  Supported cloud databases:"));
+  printLine(`  ${brand.muted("⚡ Supabase  🐘 Neon DB  🚂 Railway  🍃 MongoDB Atlas")}`);
+  printLine(`  ${brand.muted("🪐 PlanetScale  ☁️  Aiven  🪳 CockroachDB")}`);
+  printBlank();
+
+  const { connectionMethod } = await inquirer.prompt([{
+    type: "list",
+    name: "connectionMethod",
+    message: "How do you want to connect to your database?",
+    choices: [
+      {
+        name: "📋 Paste a Database URL (Supabase, Neon, Railway, Atlas, etc.)",
+        value: "url",
+      },
+      {
+        name: "✏️  Enter details manually (Host, Port, User, Password)",
+        value: "manual",
+      },
+    ],
+  }]);
+
+  if (connectionMethod === "url") {
+    return await promptDatabaseUrl();
+  } else {
+    return await promptDatabaseCredentials();
+  }
+}
+
+// ─── Helper: Prompt for Database URL ────────────────────────────
+
+async function promptDatabaseUrl(): Promise<DatabaseCredentials> {
+  printBlank();
+  printLine(brand.muted("  Paste the full connection string from your cloud dashboard."));
+  printLine(brand.muted("  Examples:"));
+  printLine(brand.muted("    postgresql://user:pass@db.abc123.supabase.co:5432/postgres"));
+  printLine(brand.muted("    postgresql://user:pass@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require"));
+  printLine(brand.muted("    mongodb+srv://user:pass@cluster0.abc123.mongodb.net/mydb"));
+  printBlank();
+
+  const { dbUrl } = await inquirer.prompt([{
+    type: "input",
+    name: "dbUrl",
+    message: "Database URL:",
+    validate: (v: string) => {
+      const trimmed = v.trim();
+      if (!trimmed) return "URL cannot be empty.";
+      if (!/^(postgres(ql)?|mysql|mongodb(\+srv)?):\/\//i.test(trimmed)) {
+        return "URL must start with postgresql://, mysql://, or mongodb://";
+      }
+      return true;
+    },
+  }]);
+
+  const spinner = createSpinner("Parsing connection string...");
+  spinner.start();
+
+  try {
+    const creds = parseDatabaseUrl(dbUrl);
+    const provider = detectCloudProvider(dbUrl);
+
+    if (provider) {
+      spinner.succeed(`  ${provider.icon} ${provider.name} detected → ${creds.type}://${creds.host}/${creds.database}`);
+    } else {
+      spinner.succeed(`  Parsed: ${creds.type}://${creds.host}:${creds.port}/${creds.database}`);
+    }
+
+    if (creds.ssl) {
+      printLine(`  ${brand.success("🔒")} SSL connection enabled`);
+    }
+
+    // Test connection
+    printBlank();
+    const testSpinner = createSpinner("Testing database connection...");
+    testSpinner.start();
+
+    try {
+      await scrapeDatabase(creds);
+      testSpinner.succeed("  Connection successful! Database is reachable.");
+    } catch (err: any) {
+      testSpinner.warn(`  Connection test failed: ${err.message}`);
+      printWarn("The URL might be incorrect, or your IP may need to be allowed in the cloud dashboard.");
+
+      const { retryUrl } = await inquirer.prompt([{
+        type: "confirm",
+        name: "retryUrl",
+        message: "Try entering the URL again?",
+        default: true,
+      }]);
+
+      if (retryUrl) {
+        return await promptDatabaseUrl();
+      }
+    }
+
+    return creds;
+  } catch (err: any) {
+    spinner.fail(`  ${err.message}`);
+    printBlank();
+
+    const { fallbackManual } = await inquirer.prompt([{
+      type: "confirm",
+      name: "fallbackManual",
+      message: "URL parsing failed. Enter credentials manually instead?",
+      default: true,
+    }]);
+
+    if (fallbackManual) {
+      return await promptDatabaseCredentials();
+    }
+
+    // Re-prompt URL
+    return await promptDatabaseUrl();
+  }
+}
+
+// ─── Helper: Prompt for DB credentials manually ─────────────────
 
 async function promptDatabaseCredentials(): Promise<DatabaseCredentials> {
   const answers = await inquirer.prompt([
