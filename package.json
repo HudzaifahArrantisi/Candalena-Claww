@@ -1,6 +1,6 @@
 {
   "name": "candalena-claw",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Candalena Claw — Standalone LMS Reminder Engine. CLI wizard & background daemon with multi-DB support (MySQL/PostgreSQL/MongoDB), AI-powered analysis (Gemini/OpenAI), and 24/7 Telegram deadline reminders. No OpenClaw required.",
   "main": "dist/index.js",
   "bin": {
