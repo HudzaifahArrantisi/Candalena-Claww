@@ -30,11 +30,21 @@
 
 ## 🚀 Step-by-Step Installation & Setup
 
-### 1. Install Globally (Local/VPS)
-Make sure you have Node.js installed.
+### 1. Installation
+Make sure you have Node.js installed. You can install Candalena Claw either globally or locally.
+
+**Global Installation (Recommended for easy CLI access)**
 ```bash
 npm install -g candalena-claw
+# or shorter:
+npm -g candalena-claw
 ```
+
+**Local Installation (For project-specific usage)**
+```bash
+npm i candalena-claw
+```
+*(If installed locally, use `npx candalena-claw` to run the commands).*
 
 ### 2. Configure Telegram Bot
 1. Open Telegram and search for **@BotFather**.
