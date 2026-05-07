@@ -104,8 +104,8 @@ services:
 ```
 Then run: `docker compose up -d --build`
 
-### Option B: Run Standalone via Docker
-If you just want to run Candalena Claw in its own Docker container:
+### Option B: Run Standalone via Docker (From Source Code)
+If you have cloned the repository and want to run it in its own Docker container:
 1. Upload this project folder (with the generated `.env` file) to your VPS.
 2. Inside the folder, run:
 ```bash
@@ -114,6 +114,55 @@ docker compose up -d --build
 3. To view logs and monitor reminders in real-time:
 ```bash
 docker logs -f candalena-claw
+```
+
+### Option C: Run via Docker (If installed via NPM)
+If you only installed the package via NPM and don't have the source code folder, you can still easily run it with Docker on your VPS:
+
+1. Create a new folder on your VPS (e.g., `mkdir candalena-bot && cd candalena-bot`).
+2. Upload or create your `.env` file in this folder (generated from `candalena-claw install-ai`).
+3. Create a **`Dockerfile`**:
+```dockerfile
+# ═══════════════════════════════════════════
+# Candalena Claw — NPM Dockerfile
+# Lightweight Node.js background daemon
+# ═══════════════════════════════════════════
+FROM node:20-alpine
+
+# Set timezone (default: Asia/Jakarta)
+ENV TZ=Asia/Jakarta
+
+# Install candalena-claw globally
+RUN npm install -g candalena-claw
+
+# Health check — verify node process is running
+HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
+  CMD node -e "console.log('ok')" || exit 1
+
+CMD ["candalena-claw", "start"]
+```
+4. Create a **`docker-compose.yml`**:
+```yaml
+# ═══════════════════════════════════════════
+# Candalena Claw — Docker Compose
+# Deploy with: docker compose up -d
+# ═══════════════════════════════════════════
+services:
+  candalena-daemon:
+    build: .
+    container_name: candalena-claw
+    restart: unless-stopped
+    env_file:
+      - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+5. Run the daemon:
+```bash
+docker compose up -d --build
 ```
 
 ---
