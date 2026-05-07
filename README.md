@@ -1,8 +1,8 @@
-# 🦞 Candalena Claw v4.0.0
+# 🦞 Candalena Claw v4.0.1
 
 > **Universal LMS Reminder Engine** — Standalone Background Daemon for Multi-Database & Telegram Integration.
 
-[![Version](https://img.shields.io/badge/version-4.0.0-7C3AED)](https://github.com/HudzaifahArrantisi/Candalena-Claww)
+[![Version](https://img.shields.io/badge/version-4.0.1-7C3AED)](https://github.com/HudzaifahArrantisi/Candalena-Claww)
 [![Node](https://img.shields.io/badge/node-20.0%2B-339933)](https://nodejs.org)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-ISC-blue)](LICENSE)
