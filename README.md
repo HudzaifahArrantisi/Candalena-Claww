@@ -1,4 +1,4 @@
-# 🦞 Candalena Claw v4.0.1
+# 🦞 Candalena-Claw v4.0.1
 
 > **Universal LMS Reminder Engine** — Standalone Background Daemon for Multi-Database & Telegram Integration.
 
