@@ -90,6 +90,7 @@ _Selesaikan tugas tepat waktu!_ ✨
   treat it as a relationship even if no formal FK constraint exists.
 - Prioritize accuracy over speed — a wrong notification is worse than a late one.
 - Track which assignments have already been notified to prevent duplicates.
+- Omit any line in the message if the corresponding value is null, "null", or empty (e.g., if Mata Kuliah is not found, do not include the line at all).
 `;
 
 /**

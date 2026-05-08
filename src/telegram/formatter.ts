@@ -17,12 +17,19 @@ export function formatReminderMessage(task: Assignment): string {
     `📝 <b>Judul:</b> ${task.title}`,
   ];
 
-  if (task.lecturer) lines.push(`👨‍🏫 <b>Dosen:</b> ${task.lecturer}`);
-  if (task.course)   lines.push(`📖 <b>Mata Kuliah:</b> ${task.course}`);
-  if (task.kelas && task.semester) {
-    lines.push(`🏫 <b>Kelas:</b> ${task.kelas} — Semester ${task.semester}`);
-  } else if (task.kelas) {
-    lines.push(`🏫 <b>Kelas:</b> ${task.kelas}`);
+  if (task.lecturer && String(task.lecturer).toLowerCase() !== "null") {
+    lines.push(`👨‍🏫 <b>Dosen:</b> ${task.lecturer}`);
+  }
+  if (task.course && String(task.course).toLowerCase() !== "null") {
+    lines.push(`📖 <b>Mata Kuliah:</b> ${task.course}`);
+  }
+  const kelas = (task.kelas && String(task.kelas).toLowerCase() !== "null") ? task.kelas : null;
+  const semester = (task.semester && String(task.semester).toLowerCase() !== "null") ? task.semester : null;
+
+  if (kelas && semester) {
+    lines.push(`🏫 <b>Kelas:</b> ${kelas} — Semester ${semester}`);
+  } else if (kelas) {
+    lines.push(`🏫 <b>Kelas:</b> ${kelas}`);
   }
   if (task.deadline) {
     const dl = new Date(task.deadline as string);

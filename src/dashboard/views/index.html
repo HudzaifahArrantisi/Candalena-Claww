@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🦞 Candalena Claw — Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-card: rgba(20, 20, 35, 0.8);
+      --bg-glass: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.08);
+      --text-primary: #e4e4e7;
+      --text-muted: #71717a;
+      --accent: #7c3aed;
+      --accent-glow: rgba(124, 58, 237, 0.3);
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --info: #3b82f6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background gradient orbs */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -30%;
+      left: -20%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+      border-radius: 50%;
+      z-index: 0;
+      animation: float 20s ease-in-out infinite;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -20%;
+      right: -10%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.15), transparent 70%);
+      border-radius: 50%;
+      z-index: 0;
+      animation: float 25s ease-in-out infinite reverse;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(30px, -20px); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo {
+      font-size: 36px;
+      filter: drop-shadow(0 0 12px var(--accent-glow));
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header .version {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--success);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    /* Cards grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .card-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .card-value {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .card-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Config table */
+    .section {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      animation: fadeIn 0.6s ease;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td:first-child {
+      color: var(--text-muted);
+      width: 180px;
+    }
+
+    td code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: var(--bg-glass);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    /* Log viewer */
+    .log-viewer {
+      background: #0c0c14;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+    }
+
+    .log-viewer::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .log-viewer::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .log-viewer::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    .log-line {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .log-line .ts {
+      color: var(--text-muted);
+    }
+
+    .log-line.info { color: var(--text-primary); }
+    .log-line.error { color: var(--error); }
+    .log-line.warn { color: var(--warning); }
+
+    .log-empty {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px;
+      font-style: italic;
+    }
+
+    /* Targets list */
+    .target-chip {
+      display: inline-block;
+      padding: 4px 12px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      margin: 2px 4px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 24px 0;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* Auto-refresh indicator */
+    .refresh-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .refresh-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 3s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <span class="logo">🦞</span>
+        <div>
+          <h1>Candalena Claw</h1>
+          <span class="version" id="version">v5.0.0</span>
+        </div>
+      </div>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">Running</span>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Uptime</div>
+        <div class="card-value" id="uptime">—</div>
+        <div class="card-sub" id="memory">Memory: —</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Database</div>
+        <div class="card-value" id="db-type">—</div>
+        <div class="card-sub" id="table-name">Table: —</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Timezone</div>
+        <div class="card-value" id="timezone">—</div>
+        <div class="card-sub" id="remind-days">Remind: —</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Interactive Bot</div>
+        <div class="card-value" id="bot-status">—</div>
+        <div class="card-sub">Telegram long-polling</div>
+      </div>
+    </div>
+
+    <!-- Config Section -->
+    <div class="section">
+      <div class="section-title">⚙️ Daemon Configuration</div>
+      <table>
+        <tr>
+          <td>New Task Scanner</td>
+          <td><code id="cron-new">—</code></td>
+        </tr>
+        <tr>
+          <td>Deadline Scanner</td>
+          <td><code id="cron-deadline">—</code></td>
+        </tr>
+        <tr>
+          <td>Telegram Targets</td>
+          <td id="targets-cell">—</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Logs Section -->
+    <div class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div class="section-title" style="margin-bottom: 0;">📋 Real-time Logs</div>
+        <div class="refresh-indicator">
+          <span class="refresh-dot"></span>
+          Auto-refresh 3s
+        </div>
+      </div>
+      <div class="log-viewer" id="log-viewer">
+        <div class="log-empty">Waiting for logs...</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      🦞 Candalena Claw — Standalone LMS Reminder Engine
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/api/status`);
+        const data = await res.json();
+
+        document.getElementById('version').textContent = 'v' + (data.version || '5.0.0');
+        document.getElementById('uptime').textContent = data.uptime || '—';
+        document.getElementById('memory').textContent = `Memory: ${data.memoryUsage?.heapUsed || '—'}`;
+        document.getElementById('status-text').textContent = data.status === 'running' ? 'Running' : 'Stopped';
+
+        const cfg = data.config || {};
+        document.getElementById('db-type').textContent = (cfg.dbType || '—').toUpperCase();
+        document.getElementById('table-name').textContent = `Table: ${cfg.tableName || '—'}`;
+        document.getElementById('timezone').textContent = cfg.timezone || '—';
+        document.getElementById('remind-days').textContent = `Remind: H-${(cfg.remindDays || '').replace(/,/g, ', H-')}`;
+        document.getElementById('bot-status').textContent = cfg.botActive ? '✅ Active' : '❌ Off';
+        document.getElementById('cron-new').textContent = cfg.cronNewTask || '—';
+        document.getElementById('cron-deadline').textContent = cfg.cronDeadline || '—';
+
+        const targetsCell = document.getElementById('targets-cell');
+        if (cfg.targets && cfg.targets.length > 0) {
+          targetsCell.innerHTML = cfg.targets
+            .map(t => `<span class="target-chip">${t}</span>`)
+            .join('');
+        } else {
+          targetsCell.textContent = '—';
+        }
+      } catch (err) {
+        document.getElementById('status-text').textContent = 'Error';
+      }
+    }
+
+    async function fetchLogs() {
+      try {
+        const res = await fetch(`${API_BASE}/api/logs`);
+        const data = await res.json();
+
+        const viewer = document.getElementById('log-viewer');
+        if (!data.logs || data.logs.length === 0) {
+          viewer.innerHTML = '<div class="log-empty">No logs yet...</div>';
+          return;
+        }
+
+        viewer.innerHTML = data.logs
+          .map(entry => {
+            const level = (entry.level || 'INFO').toLowerCase();
+            const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('id-ID') : '';
+            const msg = escapeHtml(entry.message || '');
+            return `<div class="log-line ${level}"><span class="ts">[${ts}]</span> ${msg}</div>`;
+          })
+          .join('');
+
+        // Auto-scroll to bottom
+        viewer.scrollTop = viewer.scrollHeight;
+      } catch (err) {
+        // silently skip
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Initial fetch
+    fetchStatus();
+    fetchLogs();
+
+    // Auto-refresh
+    setInterval(fetchStatus, 5000);
+    setInterval(fetchLogs, 3000);
+  </script>
+</body>
+</html>

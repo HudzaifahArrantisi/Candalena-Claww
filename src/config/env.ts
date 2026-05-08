@@ -1,4 +1,5 @@
 // src/config/env.ts
+// ─── Candalena Claw v5.0 — Environment Configuration ───
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -37,4 +38,25 @@ export const ENV = {
 
   // Server
   PORT: process.env.PORT || "3000",
+
+  // ═══════════════════════════════════════════
+  // v5.0 NEW VARIABLES
+  // ═══════════════════════════════════════════
+
+  // Notifier channels: "telegram" | "whatsapp" | "telegram,whatsapp"
+  NOTIFIER_CHANNELS: process.env.NOTIFIER_CHANNELS || "telegram",
+
+  // Admin alerting: personal Telegram ID to receive error DMs
+  ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID || "",
+
+  // Custom message templates ({{var}} syntax)
+  MSG_TEMPLATE_NEW_TASK: process.env.MSG_TEMPLATE_NEW_TASK || "",
+  MSG_TEMPLATE_DEADLINE: process.env.MSG_TEMPLATE_DEADLINE || "",
+
+  // Interactive Telegram bot (two-way commands: /tugas, /help)
+  ENABLE_INTERACTIVE_BOT: process.env.ENABLE_INTERACTIVE_BOT === "true",
+
+  // Lightweight web dashboard
+  ENABLE_DASHBOARD: process.env.ENABLE_DASHBOARD === "true",
+  DASHBOARD_PORT: process.env.DASHBOARD_PORT || "9090",
 };

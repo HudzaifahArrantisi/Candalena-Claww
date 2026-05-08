@@ -1,7 +1,7 @@
 {
   "name": "candalena-claw",
-  "version": "4.0.1",
-  "description": "Candalena Claw — Standalone LMS Reminder Engine. CLI wizard & background daemon with multi-DB support (MySQL/PostgreSQL/MongoDB), AI-powered analysis (Gemini/OpenAI), and 24/7 Telegram deadline reminders. No OpenClaw required.",
+  "version": "4.0.2",
+  "description": "Candalena Claw — Standalone LMS Reminder Engine v5.0. Multi-channel notifications (Telegram/WhatsApp), interactive bot commands, dynamic message templates, admin error alerting, web dashboard, CLI wizard & background daemon with multi-DB support (MySQL/PostgreSQL/MongoDB).",
   "main": "dist/index.js",
   "bin": {
     "candalena-claw": "dist/cli/index.js"
@@ -18,10 +18,12 @@
     "dev:config": "ts-node src/cli/index.ts config",
     "dev:init": "ts-node src/cli/index.ts init",
     "dev:test": "ts-node src/cli/index.ts test",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "build": "tsc",
     "start": "node dist/cli/index.js start",
     "start:daemon": "node dist/engine/daemon.js",
-    "postbuild": "node -e \"const fs=require('fs');const p='dist/cli/index.js';const c=fs.readFileSync(p,'utf8');if(!c.startsWith('#!')){fs.writeFileSync(p,'#!/usr/bin/env node\\n'+c);}\""
+    "postbuild": "node -e \"const fs=require('fs');const p=require('path');const src=p.join('src','dashboard','views');const dst=p.join('dist','dashboard','views');if(fs.existsSync(src)){fs.mkdirSync(dst,{recursive:true});fs.readdirSync(src).forEach(f=>fs.copyFileSync(p.join(src,f),p.join(dst,f)));console.log('Copied dashboard views to dist.')}\" && node -e \"const fs=require('fs');const p='dist/cli/index.js';const c=fs.readFileSync(p,'utf8');if(!c.startsWith('#!')){fs.writeFileSync(p,'#!/usr/bin/env node\\n'+c);}\""
   },
   "files": [
     "dist",
@@ -67,9 +69,12 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/inquirer": "^9.0.9",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.15.4",
+    "jest": "^30.4.0",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
   }

@@ -1,19 +1,33 @@
 // src/engine/daemon.ts
-// ─── Candalena Claw — Standalone Background Daemon ───
+// ─── Candalena Claw v5.0 — Standalone Background Daemon ───
 // Two independent cron cycles:
 //   PHASE 1: Real-time new-task scanner  (every 1 minute)
 //   PHASE 2: Daily deadline reminder     (configurable, default 07:00)
 //
-// No OpenClaw dependency. Uses node-cron, direct DB adapters, Telegram Bot API.
+// v5.0 Upgrades:
+//   • INotifier adapter pattern (multi-channel ready)
+//   • Dynamic message templates via .env
+//   • Admin error alerting (DM to admin on crash/errors)
+//   • Interactive bot listener (/tugas, /help)
+//   • Lightweight web dashboard (optional)
+//
+// No OpenClaw dependency. Uses node-cron, direct DB adapters.
 
 import dotenv from "dotenv";
 dotenv.config();
 
 import cron from "node-cron";
-import https from "https";
 import { createAdapter, getAdapter } from "../adapters/adapter.factory";
 import { SchemaMapping, Assignment } from "../adapters/adapter.interface";
 import { parseDatabaseUrl } from "../lib/db-url-parser";
+
+// ── v5.0 Imports ──
+import { createNotifiers, broadcastAll } from "../notifiers/notifier.factory";
+import { renderTemplate, DEFAULT_NEW_TASK_TEMPLATE, DEFAULT_DEADLINE_TEMPLATE } from "../templates/template-engine";
+import { initAdminAlert, installGlobalErrorHandlers, alertAdmin } from "../alerts/admin-alert";
+import { BotListener } from "../bot/bot-listener";
+import { installLogInterceptor } from "../dashboard/log-buffer";
+import { startDashboard } from "../dashboard/dashboard.server";
 
 // ═══════════════════════════════════════════
 // Configuration
@@ -33,6 +47,23 @@ const CONFIG = {
 
   // Table
   TABLE_NAME: process.env.TABLE_NAME || "tugas",
+
+  // v5.0: Notifier channels
+  NOTIFIER_CHANNELS: process.env.NOTIFIER_CHANNELS || "telegram",
+
+  // v5.0: Admin alerting
+  ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID || "",
+
+  // v5.0: Message templates
+  MSG_TEMPLATE_NEW_TASK: process.env.MSG_TEMPLATE_NEW_TASK || "",
+  MSG_TEMPLATE_DEADLINE: process.env.MSG_TEMPLATE_DEADLINE || "",
+
+  // v5.0: Interactive bot
+  ENABLE_INTERACTIVE_BOT: process.env.ENABLE_INTERACTIVE_BOT === "true",
+
+  // v5.0: Dashboard
+  ENABLE_DASHBOARD: process.env.ENABLE_DASHBOARD === "true",
+  DASHBOARD_PORT: parseInt(process.env.DASHBOARD_PORT || "9090", 10),
 };
 
 // ═══════════════════════════════════════════
@@ -47,85 +78,6 @@ let cachedSchema: SchemaMapping | null = null;
 const courseMap = new Map<string, string>();
 
 // ═══════════════════════════════════════════
-// Telegram Sender (zero-dependency, raw HTTPS)
-// ═══════════════════════════════════════════
-
-async function sendTelegram(chatId: string, message: string): Promise<boolean> {
-  const token = CONFIG.TELEGRAM_BOT_TOKEN;
-  if (!token) {
-    console.error("[Candalena] ❌ TELEGRAM_BOT_TOKEN not set!");
-    return false;
-  }
-
-  const body = JSON.stringify({
-    chat_id: chatId,
-    text: message,
-    parse_mode: "HTML",
-  });
-
-  return new Promise((resolve) => {
-    const req = https.request(
-      {
-        hostname: "api.telegram.org",
-        path: `/bot${token}/sendMessage`,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(body),
-        },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (!parsed.ok) {
-              console.error(`[Telegram] API error: ${parsed.description}`);
-              resolve(false);
-            } else {
-              resolve(true);
-            }
-          } catch {
-            console.error("[Telegram] Failed to parse response");
-            resolve(false);
-          }
-        });
-      }
-    );
-    req.on("error", (err) => {
-      console.error(`[Telegram] Network error: ${err.message}`);
-      resolve(false);
-    });
-    req.write(body);
-    req.end();
-  });
-}
-
-// Send to all configured targets
-async function broadcastTelegram(message: string): Promise<void> {
-  const targets = CONFIG.TELEGRAM_TARGETS
-    ? CONFIG.TELEGRAM_TARGETS.split(",").map(t => t.trim()).filter(Boolean)
-    : CONFIG.TELEGRAM_CHAT_ID
-      ? [CONFIG.TELEGRAM_CHAT_ID]
-      : [];
-
-  if (targets.length === 0) {
-    console.warn("[Candalena] ⚠️ No Telegram targets configured.");
-    return;
-  }
-
-  for (const chatId of targets) {
-    const ok = await sendTelegram(chatId, message);
-    if (ok) {
-      console.log(`[Candalena] ✅ Sent → ${chatId}`);
-    } else {
-      console.error(`[Candalena] ❌ Failed → ${chatId}`);
-    }
-  }
-}
-
-// ═══════════════════════════════════════════
 // Schema & Adapter helpers
 // ═══════════════════════════════════════════
 
@@ -137,46 +89,49 @@ async function getSchema(): Promise<SchemaMapping> {
 }
 
 // ═══════════════════════════════════════════
-// Message Formatters
+// Message Formatters (v5.0: Template-based)
 // ═══════════════════════════════════════════
 
 function formatNewTaskMessage(task: Assignment): string {
-  const courseName = courseMap.get(task.course as string) || task.course;
+  const courseValue = task.course && String(task.course).toLowerCase() !== "null" ? task.course : "";
+  const courseName = courseMap.get(courseValue as string) || courseValue || "";
 
-  const lines = [
-    `📢 <b>PEMBERITAHUAN TUGAS BARU</b>`,
-    `─────────────────────────`,
-    `📖 <b>Mata Kuliah:</b> ${courseName}`,
-    `📝 <b>Judul Tugas:</b> ${task.title}`,
-  ];
-
-  if (task.lecturer)  lines.push(`👨‍🏫 <b>Dosen:</b> ${task.lecturer}`);
-  if (task.kelas && task.semester) {
-    lines.push(`🏫 <b>Kelas:</b> ${task.kelas} — Semester ${task.semester}`);
-  } else if (task.kelas) {
-    lines.push(`🏫 <b>Kelas:</b> ${task.kelas}`);
-  }
+  let dlStr = "";
   if (task.deadline) {
     try {
       const dl = new Date(task.deadline as string);
-      const dlStr = dl.toLocaleString("id-ID", {
+      dlStr = dl.toLocaleString("id-ID", {
         timeZone: CONFIG.TZ,
         dateStyle: "full",
         timeStyle: "short",
       });
-      lines.push(`📅 <b>Batas Waktu:</b> ${dlStr}`);
     } catch { /* skip if parse fails */ }
   }
 
-  lines.push(``);
-  lines.push(`Mohon segera memeriksa sistem akademik untuk detail lebih lanjut.`);
-  lines.push(`─────────────────────────`);
+  const lecturer = (task.lecturer && String(task.lecturer).toLowerCase() !== "null") ? task.lecturer : "";
+  const kelas = (task.kelas && String(task.kelas).toLowerCase() !== "null") ? task.kelas : "";
+  const semester = (task.semester && String(task.semester).toLowerCase() !== "null") ? task.semester : "";
 
-  return lines.join("\n");
+  const kelasStr = kelas && semester
+    ? `${kelas} — Semester ${semester}`
+    : kelas || "";
+
+  // Use custom template from .env or default
+  const template = CONFIG.MSG_TEMPLATE_NEW_TASK || DEFAULT_NEW_TASK_TEMPLATE;
+
+  return renderTemplate(template, {
+    matkul: courseName,
+    judul: task.title,
+    dosen: lecturer,
+    kelas: kelasStr,
+    semester: semester,
+    deadline: dlStr,
+  });
 }
 
 function formatDeadlineMessage(task: Assignment, daysLeft: number): string {
-  const courseName = courseMap.get(task.course as string) || task.course;
+  const courseValue = task.course && String(task.course).toLowerCase() !== "null" ? task.course : "";
+  const courseName = courseMap.get(courseValue as string) || courseValue || "";
 
   let urgency: string;
   if (daysLeft === 0)      urgency = "🔴 HARI INI! DEADLINE!";
@@ -184,37 +139,39 @@ function formatDeadlineMessage(task: Assignment, daysLeft: number): string {
   else if (daysLeft === 2) urgency = "🟠 H-2";
   else                     urgency = `🟢 H-${daysLeft}`;
 
-  const lines = [
-    `⏰ <b>PENGINGAT BATAS WAKTU TUGAS</b>`,
-    `─────────────────────────`,
-    urgency,
-    `📖 <b>Mata Kuliah:</b> ${courseName}`,
-    `📝 <b>Judul Tugas:</b> ${task.title}`,
-  ];
-
-  if (task.lecturer)  lines.push(`👨‍🏫 <b>Dosen:</b> ${task.lecturer}`);
-  if (task.kelas && task.semester) {
-    lines.push(`🏫 <b>Kelas:</b> ${task.kelas} — Semester ${task.semester}`);
-  } else if (task.kelas) {
-    lines.push(`🏫 <b>Kelas:</b> ${task.kelas}`);
-  }
+  let dlStr = "";
   if (task.deadline) {
     try {
       const dl = new Date(task.deadline as string);
-      const dlStr = dl.toLocaleString("id-ID", {
+      dlStr = dl.toLocaleString("id-ID", {
         timeZone: CONFIG.TZ,
         dateStyle: "full",
         timeStyle: "short",
       });
-      lines.push(`📅 <b>Batas Waktu:</b> ${dlStr}`);
     } catch { /* skip if parse fails */ }
   }
 
-  lines.push(``);
-  lines.push(`Diharapkan untuk segera menyelesaikan tugas sebelum batas waktu berakhir.`);
-  lines.push(`─────────────────────────`);
+  const lecturer = (task.lecturer && String(task.lecturer).toLowerCase() !== "null") ? task.lecturer : "";
+  const kelas = (task.kelas && String(task.kelas).toLowerCase() !== "null") ? task.kelas : "";
+  const semester = (task.semester && String(task.semester).toLowerCase() !== "null") ? task.semester : "";
 
-  return lines.join("\n");
+  const kelasStr = kelas && semester
+    ? `${kelas} — Semester ${semester}`
+    : kelas || "";
+
+  // Use custom template from .env or default
+  const template = CONFIG.MSG_TEMPLATE_DEADLINE || DEFAULT_DEADLINE_TEMPLATE;
+
+  return renderTemplate(template, {
+    matkul: courseName,
+    judul: task.title,
+    dosen: lecturer,
+    kelas: kelasStr,
+    semester: semester,
+    deadline: dlStr,
+    urgency,
+    hari: daysLeft,
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -255,9 +212,9 @@ async function scanNewTasks(): Promise<void> {
       const task = mapRowToAssignment(row, schema);
       const taskId = row[idCol] ?? row.id ?? row._id;
 
-      // Format and broadcast the message
+      // Format and broadcast the message via ALL notifier channels
       const message = formatNewTaskMessage(task);
-      await broadcastTelegram(message);
+      await broadcastAll(message);
 
       console.log(`[Candalena] 📚 New task notified: "${task.title}" (ID: ${taskId})`);
 
@@ -275,6 +232,7 @@ async function scanNewTasks(): Promise<void> {
 
   } catch (err: any) {
     console.error(`[Candalena] ❌ New task scan error: ${err.message}`);
+    await alertAdmin("New Task Scan Error", err.message);
   }
 }
 
@@ -336,7 +294,8 @@ async function scanDeadlines(): Promise<void> {
       const task = mapRowToAssignment(row, schema);
       const message = formatDeadlineMessage(task, diff);
 
-      await broadcastTelegram(message);
+      // v5.0: Broadcast via ALL notifier channels
+      await broadcastAll(message);
       sentDeadlineReminders.add(reminderKey);
       remindersSent++;
 
@@ -350,6 +309,7 @@ async function scanDeadlines(): Promise<void> {
     }
   } catch (err: any) {
     console.error(`[Candalena] ❌ Deadline scan error: ${err.message}`);
+    await alertAdmin("Deadline Scan Error", err.message);
   }
 }
 
@@ -376,8 +336,15 @@ function mapRowToAssignment(row: any, schema: SchemaMapping): Assignment {
 // ═══════════════════════════════════════════
 
 async function boot(): Promise<void> {
+  // ── v5.0: Install log interceptor FIRST (for dashboard) ──
+  installLogInterceptor();
+
+  // ── v5.0: Install global error handlers & admin alerting ──
+  initAdminAlert(CONFIG.TELEGRAM_BOT_TOKEN, CONFIG.ADMIN_TELEGRAM_ID);
+  installGlobalErrorHandlers();
+
   console.log("╔═══════════════════════════════════════════════╗");
-  console.log("║  🦞 Candalena Claw — Reminder Daemon v4.0.0   ║");
+  console.log("║  🦞 Candalena Claw — Reminder Daemon v5.0.0   ║");
   console.log("║  Standalone Background Worker                  ║");
   console.log("║  Phase 1: Real-time Task Scanner (every 1 min) ║");
   console.log("║  Phase 2: Daily Deadline Reminder               ║");
@@ -395,10 +362,31 @@ async function boot(): Promise<void> {
     process.exit(1);
   }
 
+  // ── v5.0: Initialize notifiers (Adapter Pattern) ──
+  const targetsList = CONFIG.TELEGRAM_TARGETS
+    ? CONFIG.TELEGRAM_TARGETS.split(",").map(t => t.trim()).filter(Boolean)
+    : CONFIG.TELEGRAM_CHAT_ID
+      ? [CONFIG.TELEGRAM_CHAT_ID]
+      : [];
+
+  createNotifiers({
+    channels: CONFIG.NOTIFIER_CHANNELS,
+    telegramToken: CONFIG.TELEGRAM_BOT_TOKEN,
+    telegramTargets: targetsList,
+  });
+
   // ── Connect to database & detect schema ──
   console.log("[Candalena] Connecting to database...");
-  const adapter = createAdapter();
-  await adapter.testConnection();
+
+  let adapter;
+  try {
+    adapter = createAdapter();
+    await adapter.testConnection();
+  } catch (err: any) {
+    console.error(`[Candalena] ❌ Database connection failed: ${err.message}`);
+    await alertAdmin("Database Connection Failed", err.message);
+    process.exit(1);
+  }
 
   const schema = await adapter.detectSchema(CONFIG.TABLE_NAME);
   cachedSchema = schema;
@@ -449,11 +437,15 @@ async function boot(): Promise<void> {
   console.log("┌─────────────────────────────────────────────┐");
   console.log("│  Daemon Configuration                       │");
   console.log("├─────────────────────────────────────────────┤");
-  console.log(`│  📡 Telegram: ${targets.padEnd(30)}│`);
-  console.log(`│  🔄 New task scan:  ${CONFIG.CRON_NEW_TASK.padEnd(24)}│`);
-  console.log(`│  📅 Deadline scan:  ${CONFIG.CRON_DEADLINE.padEnd(24)}│`);
-  console.log(`│  ⏰ Remind days:    H-${remindDays.join(", H-").padEnd(21)}│`);
-  console.log(`│  🌍 Timezone:       ${CONFIG.TZ.padEnd(24)}│`);
+  console.log(`│  Channels: ${CONFIG.NOTIFIER_CHANNELS.padEnd(29)}│`);
+  console.log(`│  Telegram: ${targets.padEnd(30)}│`);
+  console.log(`│  New task scan:  ${CONFIG.CRON_NEW_TASK.padEnd(24)}│`);
+  console.log(`│  Deadline scan:  ${CONFIG.CRON_DEADLINE.padEnd(24)}│`);
+  console.log(`│  Remind days:    H-${remindDays.join(", H-").padEnd(21)}│`);
+  console.log(`│  Timezone:       ${CONFIG.TZ.padEnd(24)}│`);
+  console.log(`│  Bot:            ${(CONFIG.ENABLE_INTERACTIVE_BOT ? "Active" : "Disabled").padEnd(24)}│`);
+  console.log(`│  Dashboard:      ${(CONFIG.ENABLE_DASHBOARD ? `Port ${CONFIG.DASHBOARD_PORT}` : "Disabled").padEnd(24)}│`);
+  console.log(`│  Admin alerts:   ${(CONFIG.ADMIN_TELEGRAM_ID ? "Enabled" : "Disabled").padEnd(24)}│`);
   console.log("└─────────────────────────────────────────────┘");
   console.log("");
 
@@ -485,6 +477,31 @@ async function boot(): Promise<void> {
   });
   console.log(`[Candalena] 📅 PHASE 2 active — Deadline reminder (${CONFIG.CRON_DEADLINE})`);
 
+  // ═══ v5.0: START INTERACTIVE BOT LISTENER ═══
+  if (CONFIG.ENABLE_INTERACTIVE_BOT) {
+    const botListener = new BotListener(CONFIG.TELEGRAM_BOT_TOKEN, CONFIG.TABLE_NAME, CONFIG.TZ);
+    botListener.start(); // Non-blocking, runs in background
+  } else {
+    console.log("[Candalena] 🤖 Interactive bot: disabled (set ENABLE_INTERACTIVE_BOT=true to enable)");
+  }
+
+  // ═══ v5.0: START WEB DASHBOARD ═══
+  if (CONFIG.ENABLE_DASHBOARD) {
+    startDashboard(CONFIG.DASHBOARD_PORT, {
+      targets,
+      cronNewTask: CONFIG.CRON_NEW_TASK,
+      cronDeadline: CONFIG.CRON_DEADLINE,
+      timezone: CONFIG.TZ,
+      tableName: CONFIG.TABLE_NAME,
+      dbType: process.env.DB_TYPE || "unknown",
+      botActive: CONFIG.ENABLE_INTERACTIVE_BOT,
+      remindDays: CONFIG.DEADLINE_REMIND_DAYS,
+      version: "5.0.0",
+    });
+  } else {
+    console.log("[Candalena] 📊 Dashboard: disabled (set ENABLE_DASHBOARD=true to enable)");
+  }
+
   console.log("");
   console.log("[Candalena] ✅ Daemon is running. Monitoring database for new tasks...");
   console.log("[Candalena] Press Ctrl+C to stop.\n");
@@ -496,7 +513,8 @@ async function boot(): Promise<void> {
 }
 
 // Start the daemon
-boot().catch((err) => {
+boot().catch(async (err) => {
   console.error("[Candalena] ❌ Fatal error:", err.message);
+  await alertAdmin("Fatal Boot Error", err.message);
   process.exit(1);
 });
